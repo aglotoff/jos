@@ -1,0 +1,5 @@
+Question 1
+==========
+
+Variable `x` should have the `uintptr_t` type.
+
