@@ -1,5 +1,56 @@
 Question 1
 ==========
 
-Variable `x` should have the `uintptr_t` type.
+Variable `x` should have the `uintptr_t` type because it represents a virtual address.
 
+Question 2
+==========
+
+Entry | Base Virtual Address | Points to (logically):
+-----------------------------------------------------------------------------------
+1023  | 0xFFC00000           | Page table for top 4MB of phys memory
+...   | ...                  | ...
+960   | 0xF0000000           | Page table for botom 4MB of phys memory
+959   | 0xEFC00000           | Page table for the kernel stack
+958   | 0xEF800000           | Not mapped
+957   | 0xEF400000           | Not mapped
+956   | 0xEF000000           | Page table for read-only copy of the page structures
+955   | 0xEEC00000           | Not mapped
+...   | ...                  | ...
+0     | 0x00000000           | Not mapped
+
+Question 3
+==========
+
+User programs cannot access the kernel's memory because there is no PTE_U bit set in
+the corresponding page table entries.
+
+Question 4
+==========
+
+The maximum supported amount of physical memory is 256 MB because this is the amount of
+memory in the virtual address range [0xF0000000-0xFFFFFFFF].
+
+Question 5
+==========
+
+If we had the maximum amount of physical memory (i.e. 256 MB or 65536 pages), the space
+overhead for managing memory would be 780 KB:
+* 65536 * 8 = 524288 bytes (512 KB) for page structures
+* 4096 bytes (4 KB) for the kernel page directory
+* 64 * 4096 = 262144 bytes (256 KB) for KERNBASE page tables
+* 4096 bytes (4 KB) for the kernel stack page table
+* 4096 bytes (4 KB) for the UPAGES page table
+
+Question 6
+==========
+
+We transition to running at an EIP above KERNBASE by performing a jump to the `relocated`
+symbol (entry.S, line 68).
+
+After we enable paging, we are able to continue executing at a low EIP because
+`entry_pgdir` maps the first 4MB of physical memory both at KERNBASE and at virtual
+address 0.
+
+The transition to a high EIP is necessary, because `kern_pgdir` doesn't have mappings
+for low virtual addresses.
