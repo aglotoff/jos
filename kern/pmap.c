@@ -18,6 +18,9 @@ pde_t *kern_pgdir;		// Kernel's initial page directory
 struct PageInfo *pages;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
+// This variable is set by i386_detect_pse()
+int pse_enabled;		// Does the processor support the Page Size bit?
+
 
 // --------------------------------------------------------------
 // Detect machine's physical memory setup.
@@ -54,6 +57,28 @@ i386_detect_memory(void)
 
 	cprintf("Physical memory: %uK available, base = %uK, extended = %uK\n",
 		totalmem, basemem, totalmem - basemem);
+}
+
+
+// --------------------------------------------------------------
+// Detect support for page size extensions.
+// --------------------------------------------------------------
+
+#define CPUID_EDX_PSE	0x8
+
+static void
+i386_detect_pse(void)
+{
+	uint32_t edx;
+
+	// CPUID.1 - Processor Info and Feature Bits
+	cpuid(1, NULL, NULL, NULL, &edx);
+
+	// Enable page size extensions on processors that support them.
+	if (edx & CPUID_EDX_PSE) {
+		lcr4(rcr4() | CR4_PSE);
+		pse_enabled = 1;
+	}
 }
 
 
@@ -127,7 +152,9 @@ mem_init(void)
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
 
-
+	// Detect support for 4MB pages.
+	i386_detect_pse();
+	
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
@@ -381,13 +408,28 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
-	uintptr_t addr;
 	pte_t *pte;
 
-	for (addr = va; addr != va + size; addr += PGSIZE, pa += PGSIZE) {
-		if ((pte = pgdir_walk(pgdir, (void *) addr, 1)) == NULL)
-			panic("boot_map_region: out of memory");
-		*pte = pa | perm | PTE_P;
+	while (size > 0) {
+		if (pse_enabled &&
+		   (size % PTSIZE == 0) &&
+		   (va % PTSIZE == 0) &&
+		   (pa % PTSIZE == 0)) {
+			// Use 4MB pages to reduce memory management overhead.
+			pgdir[PDX(va)] = pa | PTE_PS | perm | PTE_P;
+
+			size -= PTSIZE;
+			va += PTSIZE;
+			pa += PTSIZE;
+		} else {
+			if ((pte = pgdir_walk(pgdir, (void *) va, 1)) == NULL)
+				panic("boot_map_region: out of memory");
+			*pte = pa | perm | PTE_P;
+
+			size -= PGSIZE;
+			va += PGSIZE;
+			pa += PGSIZE;
+		}
 	}
 }
 
@@ -707,6 +749,8 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 	pgdir = &pgdir[PDX(va)];
 	if (!(*pgdir & PTE_P))
 		return ~0;
+	if (*pgdir & PTE_PS)
+		return PTE_ADDR(*pgdir) + (va & (PTSIZE-1));
 	p = (pte_t*) KADDR(PTE_ADDR(*pgdir));
 	if (!(p[PTX(va)] & PTE_P))
 		return ~0;

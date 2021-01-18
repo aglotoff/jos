@@ -54,3 +54,10 @@ address 0.
 
 The transition to a high EIP is necessary, because `kern_pgdir` doesn't have mappings
 for low virtual addresses.
+
+Challenge
+=========
+
+Added function `i386_detect_pse` in `pmap.c` which checks for support of the `PTE_PS`
+bit and enables it. Then used it in `boot_map_region` to map entire 4MB physical pages
+whenever possible.
