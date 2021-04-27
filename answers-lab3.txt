@@ -1,0 +1,15 @@
+Question 1
+==========
+
+By having a separate entry point for each exception/interrupt we are able to provide a
+trap number which allows to identify this exception/interrupt inside `trap()`.
+
+Question 2
+==========
+
+`softint` produces General Protection fault, because the interrupt gate for trap 14 has
+DPL of 0 and doesn't allow to invoke this vector in user mode. If DPL would be set to
+3, the user code would produce Page Fault (vector 14). In current implementation, the
+faulting envronment would be deleted in both cases. But if we'll later add more
+complicated logic for handling page faults, then software-generated traps would only
+confuse the kernel code and thus shouldn't be allowed.

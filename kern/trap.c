@@ -66,6 +66,16 @@ trap_init(void)
 
 	// LAB 3: Your code here.
 
+	// These are defined in trapentry.S:
+	extern void (*trap_handlers[])(void);
+
+	int i;
+
+	// Initialize IDT to point to the entry points above.
+	for (i = 0; i < IRQ_OFFSET; i++) {
+		SETGATE(idt[i], 0, GD_KT, trap_handlers[i], 0);
+	}
+
 	// Per-CPU setup 
 	trap_init_percpu();
 }
