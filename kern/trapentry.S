@@ -93,6 +93,23 @@ TRAPHANDLER_NOEC(traphandler_28, 28)
 TRAPHANDLER_NOEC(traphandler_29, 29)
 TRAPHANDLER_NOEC(traphandler_30, 30)
 TRAPHANDLER_NOEC(traphandler_31, 31)
+TRAPHANDLER_NOEC(traphandler_timer, IRQ_OFFSET + IRQ_TIMER)
+TRAPHANDLER_NOEC(traphandler_kbd, IRQ_OFFSET + IRQ_KBD)
+TRAPHANDLER_NOEC(traphandler_irq2, IRQ_OFFSET + 2)
+TRAPHANDLER_NOEC(traphandler_irq3, IRQ_OFFSET + 3)
+TRAPHANDLER_NOEC(traphandler_serial, IRQ_OFFSET + IRQ_SERIAL)
+TRAPHANDLER_NOEC(traphandler_irq5, IRQ_OFFSET + 5)
+TRAPHANDLER_NOEC(traphandler_irq6, IRQ_OFFSET + 6)
+TRAPHANDLER_NOEC(traphandler_spurious, IRQ_OFFSET + IRQ_SPURIOUS)
+TRAPHANDLER_NOEC(traphandler_irq8, IRQ_OFFSET + 8)
+TRAPHANDLER_NOEC(traphandler_irq9, IRQ_OFFSET + 9)
+TRAPHANDLER_NOEC(traphandler_irq10, IRQ_OFFSET + 10)
+TRAPHANDLER_NOEC(traphandler_irq11, IRQ_OFFSET + 11)
+TRAPHANDLER_NOEC(traphandler_irq12, IRQ_OFFSET + 12)
+TRAPHANDLER_NOEC(traphandler_irq13, IRQ_OFFSET + 13)
+TRAPHANDLER_NOEC(traphandler_ide, IRQ_OFFSET + IRQ_IDE)
+TRAPHANDLER_NOEC(traphandler_irq15, IRQ_OFFSET + 15)
+TRAPHANDLER_NOEC(traphandler_syscall, T_SYSCALL)
 
 /*
  * Lab 3: Your code here for _alltraps
@@ -115,5 +132,14 @@ _alltraps:
 	# Call trap(tf)
 	pushl %esp
 	call trap
+	addl $0x4, %esp
 
-	# Should never get here
+	# Restore registers
+	popal
+	popl %es
+	popl %ds
+
+	# Remove tf_trapno and tf_err
+	addl $0x8, %esp
+
+	iret

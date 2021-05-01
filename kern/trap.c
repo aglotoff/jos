@@ -72,9 +72,15 @@ trap_init(void)
 	int i;
 
 	// Initialize IDT to point to the entry points above.
-	for (i = 0; i < IRQ_OFFSET; i++) {
+	for (i = 0; i <= T_SYSCALL; i++) {
 		SETGATE(idt[i], 0, GD_KT, trap_handlers[i], 0);
 	}
+
+	// Allow the Breakpoint Exception from user mode
+	idt[T_BRKPT].gd_dpl = 3;
+
+	// Allow system calls
+	idt[T_SYSCALL].gd_dpl = 3;
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -154,6 +160,24 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	switch (tf->tf_trapno) {
+	case T_BRKPT:
+		monitor(tf);
+		return;
+	case T_PGFLT:
+		page_fault_handler(tf);
+		return;
+	case T_SYSCALL:
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax,
+		                              tf->tf_regs.reg_edx,
+					      tf->tf_regs.reg_ecx,
+					      tf->tf_regs.reg_ebx,
+					      tf->tf_regs.reg_edi,
+					      tf->tf_regs.reg_esi);
+		return;
+	default:
+		break;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -215,6 +239,11 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if ((tf->tf_cs & 0x3) == 0) {
+		print_trapframe(tf);
+		panic("kernel fault va %08x ip %08x\n",
+			fault_va, tf->tf_eip);
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
