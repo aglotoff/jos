@@ -26,6 +26,8 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display a listing of function call frames", mon_backtrace },
+	{ "continue", "Continue execution from the current location", mon_continue },
+	{ "step", "Single-step one instruction at a time", mon_step },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -81,6 +83,28 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 			ebp[1] - info.eip_fn_addr);
 	}
 	return 0;
+}
+
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if ((tf == NULL) || (tf->tf_trapno != T_BRKPT && tf->tf_trapno != T_DEBUG)) {
+		cprintf("Not inside a breakpoint!\n");
+		return 0;
+	}
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
+
+int
+mon_step(int argc, char **argv, struct Trapframe *tf)
+{
+	if ((tf == NULL) || (tf->tf_trapno != T_BRKPT && tf->tf_trapno != T_DEBUG)) {
+		cprintf("Not inside a breakpoint!\n");
+		return 0;
+	}
+	tf->tf_eflags |= FL_TF;
+	return -1;
 }
 
 
