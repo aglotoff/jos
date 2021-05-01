@@ -37,27 +37,66 @@ syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	return ret;
 }
 
+static inline int32_t
+syscall_fast(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4)
+{
+	int32_t ret;
+
+	// Fast system call: pass system call number in AX,
+	// up to four parameters in DX, CX, BX, DI,
+	// stack pointer in BP,
+	// return address in SI.
+	// Enter the kernel with the SYSENTER instruction.
+
+	asm volatile(
+		"\tpushl %%ebp\n"
+		"\tpushl %%esi\n"
+		"\tmovl %%esp, %%ebp\n"
+		"\tleal 1f, %%esi\n"
+		"\tsysenter\n"
+		"\t1:\n"
+		"\tpopl %%esi\n"
+		"\tpopl %%ebp\n"
+		: "=a" (ret)
+		: "i" (T_SYSCALL),
+		  "a" (num),
+		  "d" (a1),
+		  "c" (a2),
+		  "b" (a3),
+		  "D" (a4)
+		: "cc", "memory");
+
+	if(check && ret > 0)
+		panic("syscall %d returned %d (> 0)", num, ret);
+
+	return ret;
+}
+
 void
 sys_cputs(const char *s, size_t len)
 {
-	syscall(SYS_cputs, 0, (uint32_t)s, len, 0, 0, 0);
+	// syscall(SYS_cputs, 0, (uint32_t)s, len, 0, 0, 0);
+	syscall_fast(SYS_cputs, 0, (uint32_t)s, len, 0, 0);
 }
 
 int
 sys_cgetc(void)
 {
-	return syscall(SYS_cgetc, 0, 0, 0, 0, 0, 0);
+	// return syscall(SYS_cgetc, 0, 0, 0, 0, 0, 0);
+	return syscall_fast(SYS_cgetc, 0, 0, 0, 0, 0);
 }
 
 int
 sys_env_destroy(envid_t envid)
 {
-	return syscall(SYS_env_destroy, 1, envid, 0, 0, 0, 0);
+	// return syscall(SYS_env_destroy, 1, envid, 0, 0, 0, 0);
+	return syscall_fast(SYS_env_destroy, 1, envid, 0, 0, 0);
 }
 
 envid_t
 sys_getenvid(void)
 {
-	 return syscall(SYS_getenvid, 0, 0, 0, 0, 0, 0);
+	// return syscall(SYS_getenvid, 0, 0, 0, 0, 0, 0);
+	return syscall_fast(SYS_getenvid, 0, 0, 0, 0, 0);
 }
 

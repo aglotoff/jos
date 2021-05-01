@@ -90,6 +90,8 @@ trap_init(void)
 void
 trap_init_percpu(void)
 {
+	void sysenter_handler(void);
+
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
 	ts.ts_esp0 = KSTACKTOP;
@@ -107,6 +109,10 @@ trap_init_percpu(void)
 
 	// Load the IDT
 	lidt(&idt_pd);
+
+	wrmsr(IA32_SYSENTER_CS, GD_KT, 0);
+	wrmsr(IA32_SYSENTER_ESP, KSTACKTOP, 0);
+	wrmsr(IA32_SYSENTER_EIP, (uintptr_t) sysenter_handler, 0);
 }
 
 void

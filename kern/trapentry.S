@@ -143,3 +143,38 @@ _alltraps:
 	addl $0x8, %esp
 
 	iret
+
+
+.globl sysenter_handler
+sysenter_handler:
+	# Save user data segments
+	pushl	%ds
+	pushl	%es
+
+	# Push the arguments onto the stack
+	pushl	$0
+	pushl	%edi
+	pushl	%ebx
+	pushl	%ecx
+	pushl	%edx
+	pushl	%eax
+
+	# Load kernel data segments
+	movw	$GD_KD, %ax
+	movw	%ax, %ds
+	movw	%ax, %es
+
+	# Call syscall(num, a1, a2, a3, a4, 0)
+	call	syscall
+
+	# Remove the arguments from the stack
+	addl	$0x18, %esp
+
+	# Restore user data segments
+	popl	%es
+	popl	%ds
+	
+	movl	%esi, %edx	# User-mode return address -> %edx
+	movl	%ebp, %ecx	# User-mode stack pointer -> ecx
+
+	sysexit
