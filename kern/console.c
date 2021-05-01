@@ -194,6 +194,7 @@ cga_putc(int c)
 	}
 
 	// What is the purpose of this?
+	// Answer: scroll down
 	if (crt_pos >= CRT_SIZE) {
 		int i;
 
@@ -382,6 +383,102 @@ kbd_init(void)
 
 
 
+/***** ANSI escape sequences interpreter *****/
+// The only currently supported sequence is:
+// ESC[Ps;...;Psm - Set Graphics Mode
+
+#define MAX_ESC_PARAMS	16
+
+static int esc_params[MAX_ESC_PARAMS];
+static int *esc_paramp = esc_params;
+static int esc_state = 0;
+
+static int crt_attr = 0;
+
+static int crt_colors[] = {
+	0,	// black
+	4,	// red
+	2,	// green
+	6,	// yellow
+	1,	// blue
+	5,	// magenta
+	3,	// cyan
+	7,	// white
+};
+
+static void
+esc_handle(int c)
+{
+	int *p;
+
+	switch (c) {
+	case 'm':
+		// Set Graphics Mode
+		for (p = esc_params; p <= esc_paramp && p < &esc_params[MAX_ESC_PARAMS]; p++) {
+			switch (*p) {
+			case 0:
+				// All attributes off
+				crt_attr = 0;
+				break;
+			case 1:
+				// Bold on
+				crt_attr |= 0x0800;
+				break;
+			default:
+				if ((*p >= 30) && (*p <= 37)) {
+					// Foreground color
+					crt_attr &= ~0x0700;
+					crt_attr |= crt_colors[*p - 30] << 8;
+				} else if ((*p >= 40) && (*p <= 47)) {
+					// Background color
+					crt_attr &= ~0x7000;
+					crt_attr |= crt_colors[*p - 40] << 12;
+				}
+				break;
+			}
+		}
+		break;
+
+	default:
+		break;
+	}
+	esc_state = 0;
+}
+
+static void
+esc_parse(int c)
+{
+	switch (esc_state) {
+	case '\x1b':
+		if (c == '[') {
+			esc_state = c;
+			esc_paramp = &esc_params[MAX_ESC_PARAMS];
+			while (esc_paramp > esc_params)
+				*--esc_paramp = 0;
+		} else {
+			esc_state = 0;
+		}
+		break;
+	case '[':
+		if (c >= '0' && c <= '9') {
+			// Parse the current parameter
+			if (esc_paramp < &esc_params[MAX_ESC_PARAMS])
+				*esc_paramp = *esc_paramp * 10 + (c - '0');
+		} else if (c == ';') {
+			// Next parameter
+			if (esc_paramp < &esc_params[MAX_ESC_PARAMS])
+				esc_paramp++;
+		} else {
+			esc_handle(c);
+		}
+		break;
+	default:
+		esc_state = 0;
+	}
+}
+
+
+
 /***** General device-independent console code *****/
 // Here we manage the console input buffer,
 // where we stash characters received from the keyboard or serial port
@@ -439,7 +536,13 @@ cons_putc(int c)
 {
 	serial_putc(c);
 	lpt_putc(c);
-	cga_putc(c);
+
+	if (esc_state)
+		esc_parse(c);
+	else if (c == '\x1b')
+		esc_state = c;
+	else
+		cga_putc(c | crt_attr);
 }
 
 // initialize the console devices

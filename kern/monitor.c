@@ -25,6 +25,9 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Display a listing of function call frames", mon_backtrace },
+	{ "continue", "Continue execution from the current location", mon_continue },
+	{ "step", "Single-step one instruction at a time", mon_step },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -58,8 +61,50 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	// Your code here.
+	uint32_t *ebp;
+	int i;
+	struct Eipdebuginfo info;
+	
+	cprintf("Stack backtrace:\n");
+
+	for (ebp = (uint32_t *) read_ebp(); ebp; ebp = *(uint32_t **) ebp) {
+		cprintf("  ebp %08x  eip %08x  args", ebp, ebp[1]);
+		for (i = 0; i < 5; i++)
+			cprintf(" %08x", ebp[2 + i]);
+		cprintf("\n");
+
+		debuginfo_eip(ebp[1], &info);
+
+		cprintf("         %s:%d: %.*s+%d\n",
+			info.eip_file,
+			info.eip_line,
+			info.eip_fn_namelen,
+			info.eip_fn_name,
+			ebp[1] - info.eip_fn_addr);
+	}
 	return 0;
+}
+
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if ((tf == NULL) || (tf->tf_trapno != T_BRKPT && tf->tf_trapno != T_DEBUG)) {
+		cprintf("Not inside a breakpoint!\n");
+		return 0;
+	}
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
+
+int
+mon_step(int argc, char **argv, struct Trapframe *tf)
+{
+	if ((tf == NULL) || (tf->tf_trapno != T_BRKPT && tf->tf_trapno != T_DEBUG)) {
+		cprintf("Not inside a breakpoint!\n");
+		return 0;
+	}
+	tf->tf_eflags |= FL_TF;
+	return -1;
 }
 
 
