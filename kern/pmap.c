@@ -75,10 +75,8 @@ i386_detect_pse(void)
 	cpuid(0x00000001, NULL, NULL, NULL, &edx);
 
 	// Enable page size extensions on processors that support them.
-	if (edx & 0x8) {
-		lcr4(rcr4() | CR4_PSE);
+	if (edx & 0x8)
 		pse_enabled = 1;
-	}
 }
 
 
@@ -260,7 +258,7 @@ mem_init(void)
 	//
 	// If the machine reboots at this point, you've probably set up your
 	// kern_pgdir wrong.
-	lcr3(PADDR(kern_pgdir));
+	mem_init_percpu();
 
 	check_page_free_list(0);
 
@@ -273,6 +271,16 @@ mem_init(void)
 
 	// Some more checks, only possible after kern_pgdir is installed.
 	check_page_installed_pgdir();
+}
+
+// Load the kernel page directory on this CPU
+void
+mem_init_percpu(void)
+{
+	if (pse_enabled)
+		lcr4(rcr4() | CR4_PSE);
+	
+	lcr3(PADDR(kern_pgdir));
 }
 
 // Modify mappings in kern_pgdir to support SMP
@@ -297,7 +305,14 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
+	int i;
 
+	for (i = 0; i < NCPU; i++)
+		boot_map_region(kern_pgdir,
+				KSTACKTOP - (i + 1) * (KSTKSIZE + KSTKGAP) + KSTKGAP,
+				KSTKSIZE,
+				PADDR(percpu_kstacks[i]),
+				PTE_W | PTE_P);
 }
 
 // --------------------------------------------------------------
@@ -341,6 +356,9 @@ page_init(void)
 
 	for (i = 1; i < npages; i++) {
 		if ((i >= npages_basemem) && (page2kva(&pages[i]) < first_free_page))
+			continue;
+		
+		if (i == PGNUM(MPENTRY_PADDR))
 			continue;
 
 		pages[i].pp_ref = 0;
@@ -623,7 +641,19 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	void *va;
+	size_t n;
+
+	n = ROUNDUP(size, PGSIZE);
+	if (base + n > MMIOLIM)
+		panic("not enought memory");
+
+	boot_map_region(kern_pgdir, base, n, pa, PTE_PCD | PTE_PWT | PTE_W | PTE_P);
+
+	va = (void *) base;
+	base += n;
+
+	return va;
 }
 
 static uintptr_t user_mem_check_addr;

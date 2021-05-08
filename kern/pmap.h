@@ -52,6 +52,7 @@ enum {
 };
 
 void	mem_init(void);
+void	mem_init_percpu(void);
 
 void	page_init(void);
 struct PageInfo *page_alloc(int alloc_flags);

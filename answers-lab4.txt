@@ -1,0 +1,18 @@
+Question 1
+==========
+
+The `MPBOOTPHYS` macro translates link addresses to absolute physical addresses to be used
+during AP startup. In `boot/boot.S` link addresses are identical to load addresses, so
+there is no need for such translation. But in `kern/mpentry.S`, not only are the link
+addresses different from load addresses (the kernel is expected to run above KERNBASE),
+but the code of `mpentry.S` is also copied to a different physical location.
+
+Question 2
+==========
+
+While the first CPU is executing in the kernel, a user program on the second CPU may
+invoke a system call, or an interrupt may be generated. In this case, the hardware
+switches to the kernel stack (which happens to be the same stack the first CPU is
+currently using) and starts executing the corresponding trap handler pushing its registers
+onto the stack and thus corrupting the execution state of another CPU. That's why we need
+a separate kernel stack for each CPU.
