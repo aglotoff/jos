@@ -191,7 +191,7 @@ env_setup_vm(struct Env *e)
 	e->env_pgdir = (pde_t *) page2kva(p);
 	p->pp_ref++;
 
-	memcpy(&e->env_pgdir, &kern_pgdir, PGSIZE);
+	memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -557,7 +557,7 @@ env_run(struct Env *e)
 	}
 
 	unlock_kernel();
-
+	
 	env_pop_tf(&e->env_tf);
 }
 

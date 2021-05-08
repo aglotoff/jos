@@ -16,3 +16,18 @@ switches to the kernel stack (which happens to be the same stack the first CPU i
 currently using) and starts executing the corresponding trap handler pushing its registers
 onto the stack and thus corrupting the execution state of another CPU. That's why we need
 a separate kernel stack for each CPU.
+
+Question 3
+==========
+
+The pointer `e` refers to an environment in the global `envs` array, which is a part of
+the kernel virtual address space, and all user environments share virtual memory mappings
+above `KERNBASE`. That's why the pointer can be safely dereferences before and after the
+call to `lcr3()`.
+
+Question 4
+==========
+
+The code in `trap()` saves the contents of the trap frame that contains all envionment's
+registers in `curenv->env_tf` so that they can be later restored by a call to
+`env_pop_tf()`.
