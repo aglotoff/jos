@@ -74,7 +74,6 @@ i386_detect_pse(void)
 	// CPUID.1 - Processor Info and Feature Bits
 	cpuid(0x00000001, NULL, NULL, NULL, &edx);
 
-	// Enable page size extensions on processors that support them.
 	if (edx & 0x8)
 		pse_enabled = 1;
 }
@@ -273,10 +272,13 @@ mem_init(void)
 	check_page_installed_pgdir();
 }
 
+//
 // Load the kernel page directory on this CPU
+//
 void
 mem_init_percpu(void)
 {
+	// Enable page size extensions on processors that support them.
 	if (pse_enabled)
 		lcr4(rcr4() | CR4_PSE);
 	
@@ -646,7 +648,7 @@ mmio_map_region(physaddr_t pa, size_t size)
 
 	n = ROUNDUP(size, PGSIZE);
 	if (base + n > MMIOLIM)
-		panic("not enought memory");
+		panic("out of memory");
 
 	boot_map_region(kern_pgdir, base, n, pa, PTE_PCD | PTE_PWT | PTE_W | PTE_P);
 
