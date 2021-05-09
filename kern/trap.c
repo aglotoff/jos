@@ -79,7 +79,7 @@ trap_init(void)
 	int i;
 
 	// Initialize IDT to point to the entry points above.
-	for (i = 0; i <= T_SYSCALL; i++) {
+	for (i = 0; i <= (IRQ_OFFSET + IRQ_ERROR); i++) {
 		SETGATE(idt[i], 0, GD_KT, trap_handlers[i], 0);
 	}
 
@@ -206,6 +206,10 @@ trap_dispatch(struct Trapframe *tf)
 		return;
 	case T_PGFLT:
 		page_fault_handler(tf);
+		return;
+	case IRQ_OFFSET + IRQ_TIMER:
+		lapic_eoi();
+		sched_yield();
 		return;
 	case T_SYSCALL:
 		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax,

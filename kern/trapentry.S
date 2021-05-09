@@ -111,6 +111,9 @@ TRAPHANDLER_NOEC(traphandler_irq13, IRQ_OFFSET + 13)
 TRAPHANDLER_NOEC(traphandler_ide, IRQ_OFFSET + IRQ_IDE)
 TRAPHANDLER_NOEC(traphandler_irq15, IRQ_OFFSET + 15)
 TRAPHANDLER_NOEC(traphandler_syscall, T_SYSCALL)
+TRAPHANDLER_NOEC(traphandler_ird17, IRQ_OFFSET + 17)
+TRAPHANDLER_NOEC(traphandler_ird18, IRQ_OFFSET + 18)
+TRAPHANDLER_NOEC(traphandler_ird19, IRQ_OFFSET + IRQ_ERROR)
 
 /*
  * Lab 3: Your code here for _alltraps
