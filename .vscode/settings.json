@@ -3,5 +3,9 @@
 	"editor.tabSize": 8,
 	"editor.rulers": [
 		90
+	],
+	"C_Cpp.default.defines": [
+		"JOS_KERNEL",
+		"JOS_USER"
 	]
 }

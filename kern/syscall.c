@@ -145,8 +145,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
 	
-	if ((uintptr_t) func >= UTOP)
-		return -E_INVAL;
+	user_mem_assert(e, func, 1, PTE_U | PTE_P);
 
 	e->env_pgfault_upcall = func;
 
@@ -193,7 +192,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
 
-	if ((pp = page_alloc(0)) == NULL)
+	if ((pp = page_alloc(ALLOC_ZERO)) == NULL)
 		return -E_NO_MEM;
 
 	if ((r = page_insert(e->env_pgdir, pp, va, perm)) < 0) {

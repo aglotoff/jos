@@ -21,7 +21,7 @@ struct PageInfo *pages;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
 // This variable is set by i386_detect_pse()
-int pse_enabled;		// Whether the processor supports the Page Size bit
+int pse_support;		// Whether the processor supports the Page Size bit
 
 
 // --------------------------------------------------------------
@@ -75,7 +75,7 @@ i386_detect_pse(void)
 	cpuid(0x00000001, NULL, NULL, NULL, &edx);
 
 	if (edx & 0x8)
-		pse_enabled = 1;
+		pse_support = 1;
 }
 
 
@@ -279,7 +279,7 @@ void
 mem_init_percpu(void)
 {
 	// Enable page size extensions on processors that support them.
-	if (pse_enabled)
+	if (pse_support)
 		lcr4(rcr4() | CR4_PSE);
 	
 	lcr3(PADDR(kern_pgdir));
@@ -485,7 +485,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 	while (size > 0) {
 		// Whenever possible, use 4MB pages to reduce memory management overhead.
 		if ((size % PTSIZE == 0) && (va % PTSIZE == 0) && (pa % PTSIZE == 0) &&
-		    pse_enabled) {
+		    pse_support) {
 			pgdir[PDX(va)] = pa | PTE_PS | perm | PTE_P;
 
 			size -= PTSIZE;
