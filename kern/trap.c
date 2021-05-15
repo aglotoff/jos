@@ -395,3 +395,14 @@ page_fault_handler(struct Trapframe *tf)
 	env_destroy(curenv);
 }
 
+int32_t
+syscall_handler(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4)
+{
+	int32_t ret;
+
+	lock_kernel();
+	ret = syscall(syscallno, a1, a2, a3, a4, 0);
+	unlock_kernel();
+
+	return ret;
+}

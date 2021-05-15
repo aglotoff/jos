@@ -136,17 +136,6 @@ _alltraps:
 	# Call trap(tf)
 	pushl %esp
 	call trap
-	addl $0x4, %esp
-
-	# Restore registers
-	popal
-	popl %es
-	popl %ds
-
-	# Remove tf_trapno and tf_err
-	addl $0x8, %esp
-
-	iret
 
 
 .globl sysenter_handler
@@ -156,7 +145,6 @@ sysenter_handler:
 	pushl	%es
 
 	# Push the arguments onto the stack
-	pushl	$0
 	pushl	%edi
 	pushl	%ebx
 	pushl	%ecx
@@ -168,11 +156,11 @@ sysenter_handler:
 	movw	%ax, %ds
 	movw	%ax, %es
 
-	# Call syscall(num, a1, a2, a3, a4, 0)
-	call	syscall
+	# Call syscall_handler(num, a1, a2, a3, a4)
+	call	syscall_handler
 
 	# Remove the arguments from the stack
-	addl	$0x18, %esp
+	addl	$0x14, %esp
 
 	# Restore user data segments
 	popl	%es
@@ -181,4 +169,5 @@ sysenter_handler:
 	movl	%esi, %edx	# User-mode return address -> %edx
 	movl	%ebp, %ecx	# User-mode stack pointer -> ecx
 
+	sti
 	sysexit
