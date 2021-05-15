@@ -12,6 +12,9 @@
 	.set uvpt, UVPT
 	.globl uvpd
 	.set uvpd, (UVPT+(UVPT>>12)*4)
+// Define the global 'thisenv' variable
+	.globl thisenv
+	.set thisenv, UTHISENV
 
 
 // Entrypoint - this is where the kernel (or our parent environment)
@@ -20,7 +23,7 @@
 .globl _start
 _start:
 	// See if we were started with arguments on the stack
-	cmpl $USTACKTOP, %esp
+	cmpl $UTHISENV, %esp
 	jne args_exist
 
 	// If not, push dummy argc/argv arguments.

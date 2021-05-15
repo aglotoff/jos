@@ -126,6 +126,8 @@
 // Next page left invalid to guard against exception stack overflow; then:
 // Top of normal user stack
 #define USTACKTOP	(UTOP - 2*PGSIZE)
+// Store the pointer to the current environment on the top of the user stack:
+#define UTHISENV	(USTACKTOP - 4)
 
 // Where user programs generally begin
 #define UTEXT		(2*PTSIZE)

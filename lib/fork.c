@@ -150,6 +150,52 @@ fork(void)
 int
 sfork(void)
 {
-	panic("sfork not implemented");
-	return -E_INVAL;
+	extern void _pgfault_upcall(void);
+
+	envid_t envid;
+	int r;
+	int perm;
+	unsigned pn;
+	void *va;
+
+	set_pgfault_handler(pgfault);
+
+	if ((envid = sys_exofork()) < 0)
+		return envid;
+
+	if (envid == 0) {
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	for (pn = 0; pn < PGNUM(UTOP); pn++) {
+		if (!(uvpd[pn / NPTENTRIES] & PTE_P)) {
+			pn += (NPTENTRIES - 1);
+			continue;
+		}
+
+		perm = uvpt[pn] & PTE_SYSCALL;
+		if (!(perm & PTE_P))
+			continue;
+		
+		va = (void *) (pn * PGSIZE);
+		if (va == (void *) (UXSTACKTOP - PGSIZE)) {
+			if ((r = sys_page_alloc(envid, va, PTE_U | PTE_W | PTE_P)) < 0)
+				panic("sys_page_alloc: %e", r);
+		} else if (va == (void *) (USTACKTOP - PGSIZE)) {
+			if ((r = duppage(envid, pn)) < 0)
+				panic("duppage: %e", r);
+		} else {
+			if ((r = sys_page_map(0, va, envid, va, perm)) < 0)
+				return r;
+		}
+	}
+
+	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) < 0)
+		panic("sys_env_set_pgfault_upcall: %e", r);
+
+	if ((r = sys_env_set_status(envid, ENV_RUNNABLE)) < 0)
+		panic("sys_env_set_status: %e", r);
+
+	return envid;
 }
