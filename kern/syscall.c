@@ -60,6 +60,12 @@ sys_env_destroy(envid_t envid)
 		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
 	else
 		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
+
+	while (e->env_ipc_queue != NULL) {
+		e->env_ipc_queue->env_tf.tf_regs.reg_eax = -E_BAD_ENV;
+		ENV_REMOVE(e->env_ipc_queue);
+	}
+
 	env_destroy(e);
 	return 0;
 }
@@ -232,10 +238,8 @@ sys_page_map(envid_t srcenvid, void *srcva,
 
 	// LAB 4: Your code here.
 	struct Env *srcenv, *dstenv;
-	struct PageInfo *pp;
-	pte_t *srcpte;
 	int r;
-	
+
 	if ((r = envid2env(srcenvid, &srcenv, 1)) < 0)
 		return r;
 	if ((r = envid2env(dstenvid, &dstenv, 1)) < 0)
@@ -245,19 +249,10 @@ sys_page_map(envid_t srcenvid, void *srcva,
 		return -E_INVAL;
 	if (((uintptr_t) dstva % PGSIZE != 0) || ((uintptr_t) dstva >= UTOP))
 		return -E_INVAL;
-
-	if ((pp = page_lookup(srcenv->env_pgdir, srcva, &srcpte)) == NULL)
-		return -E_INVAL;
-
 	if (!(perm & PTE_U) || !(perm & PTE_P) || (perm & ~PTE_SYSCALL))
 		return -E_INVAL;
-	if ((perm & PTE_W) && !(*srcpte & PTE_W))
-		return -E_INVAL;
 
-	if ((r = page_insert(dstenv->env_pgdir, pp, dstva, perm)) < 0)
-		return r;
-
-	return 0;
+	return user_page_grant(srcenv, srcva, dstenv, dstva, perm);
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -287,24 +282,20 @@ sys_page_unmap(envid_t envid, void *va)
 	return 0;
 }
 
-// Try to send 'value' to the target env 'envid'.
+// Send 'value' to the target env 'envid'.
 // If srcva < UTOP, then also send page currently mapped at 'srcva',
 // so that receiver gets a duplicate mapping of the same page.
 //
-// The send fails with a return value of -E_IPC_NOT_RECV if the
-// target is not blocked, waiting for an IPC.
+// If envid is not currently blocked in sys_ipc_recv, or another environment
+// managed to send first, blocks until envid is ready.
 //
-// The send also can fail for the other reasons listed below.
-//
-// Otherwise, the send succeeds, and the target's ipc fields are
-// updated as follows:
+// If the send succeeds, the target's ipc fields are updated as follows:
 //    env_ipc_recving is set to 0 to block future sends;
 //    env_ipc_from is set to the sending envid;
 //    env_ipc_value is set to the 'value' parameter;
 //    env_ipc_perm is set to 'perm' if a page was transferred, 0 otherwise.
 // The target environment is marked runnable again, returning 0
-// from the paused sys_ipc_recv system call.  (Hint: does the
-// sys_ipc_recv function ever actually return?)
+// from the paused sys_ipc_recv system call.
 //
 // If the sender wants to send a page but the receiver isn't asking for one,
 // then no page mapping is transferred, but no error occurs.
@@ -314,8 +305,6 @@ sys_page_unmap(envid_t envid, void *va)
 // Errors are:
 //	-E_BAD_ENV if environment envid doesn't currently exist.
 //		(No need to check permissions.)
-//	-E_IPC_NOT_RECV if envid is not currently blocked in sys_ipc_recv,
-//		or another environment managed to send first.
 //	-E_INVAL if srcva < UTOP but srcva is not page-aligned.
 //	-E_INVAL if srcva < UTOP and perm is inappropriate
 //		(see sys_page_alloc).
@@ -326,41 +315,32 @@ sys_page_unmap(envid_t envid, void *va)
 //	-E_NO_MEM if there's not enough memory to map srcva in envid's
 //		address space.
 static int
-sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
+sys_ipc_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
 	struct Env *e;
-	struct PageInfo *pp;
-	pte_t *pte;
 	int r;
 
 	if ((r = envid2env(envid, &e, 0)) < 0)
 		return r;
 
-	if (!e->env_ipc_recving)
-		return -E_IPC_NOT_RECV;
-
 	if (srcva < (void *) UTOP) {
 		if ((uintptr_t) srcva % PGSIZE != 0)
 			return -E_INVAL;
-
-		if ((pp = page_lookup(curenv->env_pgdir, srcva, &pte)) == NULL)
-			return -E_INVAL;
-
 		if (!(perm & PTE_U) || !(perm & PTE_P) || (perm & ~PTE_SYSCALL))
 			return -E_INVAL;
-		if ((perm & PTE_W) && !(*pte & PTE_W))
-			return -E_INVAL;
+	}
 
-		if (e->env_ipc_dstva < (void *) UTOP) {
-			if ((r = page_insert(e->env_pgdir, pp,
-						e->env_ipc_dstva, perm)) < 0)
-				return r;
-
-			e->env_ipc_perm = perm;
-		} else {
-			e->env_ipc_perm = 0;
-		}
+	if (!e->env_ipc_recving) {
+		ENV_INSERT_HEAD(e->env_ipc_queue, curenv);
+		curenv->env_status = ENV_NOT_RUNNABLE;
+		return 0;
+	}
+	
+	if ((srcva < (void *) UTOP) && (e->env_ipc_dstva < (void *) UTOP)) {
+		if ((r = user_page_grant(curenv, srcva, e, e->env_ipc_dstva, perm)) < 0)
+			return r;
+		e->env_ipc_perm = perm;
 	} else {
 		e->env_ipc_perm = 0;
 	}
@@ -374,28 +354,56 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	return 0;
 }
 
-// Block until a value is ready.  Record that you want to receive
-// using the env_ipc_recving and env_ipc_dstva fields of struct Env,
-// mark yourself not runnable, and then give up the CPU.
+// If enc_ipc_queue is empty, block until a value is ready.  Record that
+// you want to receive using the env_ipc_recving and env_ipc_dstva fields
+// of struct Env, mark yourself not runnable, and then give up the CPU.
 //
 // If 'dstva' is < UTOP, then you are willing to receive a page of data.
 // 'dstva' is the virtual address at which the sent page should be mapped.
 //
-// This function only returns on error, but the system call will eventually
-// return 0 on success.
-// Return < 0 on error.  Errors are:
+// Returns 0 on success, < 0 on error.  Errors are:
 //	-E_INVAL if dstva < UTOP but dstva is not page-aligned.
 static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
+	struct Env *e;
+	int perm;
+	void *srcva;
+	int r;
+
 	if (dstva < (void *) UTOP && ((uintptr_t) dstva % PGSIZE != 0))
 		return -E_INVAL;
 
-	curenv->env_ipc_recving = 1;
-	curenv->env_status = ENV_NOT_RUNNABLE;
 	curenv->env_ipc_dstva = dstva;
 
+	while ((e = curenv->env_ipc_queue) != NULL) {
+		srcva = (void *) e->env_tf.tf_regs.reg_ebx;
+		perm = (int) e->env_tf.tf_regs.reg_edi;
+		r = 0;
+
+		ENV_REMOVE(e);
+		e->env_status = ENV_RUNNABLE;
+		e->env_tf.tf_regs.reg_eax = 0;
+
+		if ((srcva < (void *) UTOP) && (dstva < (void *) UTOP)) {
+			if ((r = user_page_grant(e, srcva, curenv, dstva, perm)) < 0) {
+				e->env_tf.tf_regs.reg_eax = r;
+				continue;
+			}
+			curenv->env_ipc_perm = perm;
+		} else {
+			curenv->env_ipc_perm = 0;
+		}
+
+		curenv->env_ipc_from = e->env_id;
+		curenv->env_ipc_value = e->env_tf.tf_regs.reg_ecx;
+		return 0;
+	}
+
+	curenv->env_ipc_recving = 1;
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	
 	return 0;
 }
 
@@ -425,8 +433,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_getenvid();
 	case SYS_ipc_recv:
 		return sys_ipc_recv((void *) a1);
-	case SYS_ipc_try_send:
-		return sys_ipc_try_send((envid_t) a1, a2, (void *) a3, (int) a4);
+	case SYS_ipc_send:
+		return sys_ipc_send((envid_t) a1, a2, (void *) a3, (int) a4);
 	case SYS_page_alloc:
 		return sys_page_alloc((envid_t) a1, (void *) a2, (int) a3);
 	case SYS_page_map:

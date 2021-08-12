@@ -33,4 +33,23 @@ void	env_pop_tf(struct Trapframe *tf) __attribute__((noreturn));
 			   type);					\
 	} while (0)
 
+// Insert the environment `e` at the head of a list `head`
+#define ENV_INSERT_HEAD(head, e)					\
+	do {								\
+		if (((e)->env_next = (head)) != NULL)			\
+			(head)->env_prev = &(e)->env_next;		\
+		(head) = (e);						\
+		(e)->env_prev = &(head);				\
+	} while (0)
+
+// Remove the environment `e` from the containing list
+#define ENV_REMOVE(e)							\
+	do {								\
+		if ((e)->env_next != NULL)				\
+			(e)->env_next->env_prev = (e)->env_prev;	\
+		*(e)->env_prev = (e)->env_next;				\
+		(e)->env_prev = NULL;					\
+		(e)->env_next = NULL;					\
+	} while (0)
+
 #endif // !JOS_KERN_ENV_H

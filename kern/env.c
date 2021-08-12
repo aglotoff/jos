@@ -17,7 +17,7 @@
 
 struct Env *envs = NULL;		// All environments
 static struct Env *env_free_list;	// Free environment list
-					// (linked by Env->env_link)
+					// (linked by Env->env_next)
 
 #define ENVGENSHIFT	12		// >= LOGNENV
 
@@ -122,8 +122,7 @@ env_init(void)
 
 	for (e = &envs[NENV - 1]; e >= envs; e--) {
 		e->env_id = 0;
-		e->env_link = env_free_list;
-		env_free_list = e;
+		ENV_INSERT_HEAD(env_free_list, e);
 	}
 
 	// Per-CPU part of the initialization
@@ -267,7 +266,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	e->env_ipc_recving = 0;
 
 	// commit the allocation
-	env_free_list = e->env_link;
+	ENV_REMOVE(e);
 	*newenv_store = e;
 
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
@@ -468,8 +467,7 @@ env_free(struct Env *e)
 
 	// return the environment to the free list
 	e->env_status = ENV_FREE;
-	e->env_link = env_free_list;
-	env_free_list = e;
+	ENV_INSERT_HEAD(env_free_list, e);
 }
 
 //

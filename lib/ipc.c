@@ -36,12 +36,11 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 }
 
 // Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
-// This function keeps trying until it succeeds.
-// It should panic() on any error other than -E_IPC_NOT_RECV.
+// It should panic() on any error.
 //
 // Hint:
 //   Use sys_yield() to be CPU-friendly.
-//   If 'pg' is null, pass sys_ipc_try_send a value that it will understand
+//   If 'pg' is null, pass sys_ipc_send a value that it will understand
 //   as meaning "no page".  (Zero is not the right value.)
 void
 ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
@@ -49,10 +48,9 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 	// LAB 4: Your code here.
 	int r;
 
-	while ((r = sys_ipc_try_send(to_env, val, pg ? pg : (void *) UTOP, perm)) != 0)
-		if (r != -E_IPC_NOT_RECV)
-			panic("sys_ipc_try_send: %e", r);
-	
+	if ((r = sys_ipc_send(to_env, val, pg ? pg : (void *) UTOP, perm)) != 0)
+		panic("sys_ipc_try_send: %e", r);
+
 	sys_yield();
 }
 

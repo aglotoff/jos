@@ -720,6 +720,23 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 	}
 }
 
+// Map the page of memory at 'srcva' in srcenv's address space at 'dstva'
+// in dstenv's address space with permission 'perm'. Make sure to not
+// grant write access to a read-only page.
+int
+user_page_grant(struct Env *srcenv, void *srcva,
+		struct Env *dstenv, void *dstva, int perm)
+{
+	struct PageInfo *pp;
+	pte_t *pte;
+
+	if ((pp = page_lookup(srcenv->env_pgdir, srcva, &pte)) == NULL)
+		return -E_INVAL;
+	if ((perm & PTE_W) && !(*pte & PTE_W))
+		return -E_INVAL;
+	return page_insert(dstenv->env_pgdir, pp, dstva, perm);
+}
+
 
 // --------------------------------------------------------------
 // Checking functions.

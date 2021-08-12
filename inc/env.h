@@ -45,7 +45,8 @@ enum EnvType {
 
 struct Env {
 	struct Trapframe env_tf;	// Saved registers
-	struct Env *env_link;		// Next free Env
+	struct Env **env_prev;		// Previous Env in the list
+	struct Env *env_next;		// Next Env in the list
 	envid_t env_id;			// Unique environment identifier
 	envid_t env_parent_id;		// env_id of this env's parent
 	enum EnvType env_type;		// Indicates special system environments
@@ -61,10 +62,11 @@ struct Env {
 
 	// Lab 4 IPC
 	bool env_ipc_recving;		// Env is blocked receiving
+	struct Env *env_ipc_queue;	// List of senders
 	void *env_ipc_dstva;		// VA at which to map received page
-	uint32_t env_ipc_value;		// Data value sent to us
+	uint32_t env_ipc_value;		// Data value to be received
 	envid_t env_ipc_from;		// envid of the sender
-	int env_ipc_perm;		// Perm of page mapping received
+	int env_ipc_perm;		// Perm of page mapping to be received
 };
 
 #endif // !JOS_INC_ENV_H
