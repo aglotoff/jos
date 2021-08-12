@@ -31,3 +31,21 @@ Question 4
 The code in `trap()` saves the contents of the trap frame that contains all envionment's
 registers in `curenv->env_tf` so that they can be later restored by a call to
 `env_pop_tf()`.
+
+Challenge 1
+===========
+
+Implemented shared-memory `fork()`.
+
+Since the parent and child share all memory mappings except for pages in the stack area,
+store the global `thisenv` pointer at the top of the user stack.
+
+Challenge 2
+===========
+
+Changed the system call interface so that `ipc_send` doesn't have to loop.
+
+Replaced `sys_ipc_try_send` with the `sys_ipc_send` system call which blocks if the
+target environment is not receiving. To correctly handle multiple environments trying
+to send to one environment at the same time, insert them to a queue in the receiving
+environment's `struct Env`.
