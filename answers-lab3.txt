@@ -27,3 +27,28 @@ Question 4
 If user mode programs could invoke arbitrary interrupt vectors, they would crash the
 system. For example, they could invoke an interrupt handler for the disk driver, while
 the data was not ready.
+
+Challenge 1
+===========
+
+Changed the macros in `trapentry.S` to automatically generate a table of trap handlers
+by switching between the `.text` and `.data` directives.
+
+Challenge 2
+===========
+
+Added new commands to the kernel monitor:
+* `continue` - continue execution after the breakpoint exception,
+* `step` - single-step one instruction at a time.
+
+In order to implement single-stepping, the Trap Flag is set so that the CPU generates a
+breakpoint exception after each instruction.
+
+Challenge 3
+===========
+
+Implemented system calls using the `sysenter` and `sysexit` instructions.
+
+Added code to initialize the necessary MSRs in `trap_init_percpu()` in `kern/trap.c`.
+Implemented a function to invoke "fast" system calls, `syscall_fast()` in `lib/syscall.c`,
+and a corresponding kernel handler, `sysenter_handler`, in `kern/trapentry.S`.
