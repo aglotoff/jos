@@ -31,24 +31,29 @@ static const char * const error_string[MAXERROR] =
 };
 
 /*
- * Print a number (base <= 16) in reverse order,
- * using specified putch function and associated pointer putdat.
+ * Print an integer (base <= 16) using specified putch function and
+ * associated pointer putdat.
  */
 static void
-printnum(void (*putch)(int, void*), void *putdat,
-	 unsigned long long num, unsigned base, int width, int padc)
+printuint(void (*putch)(int, void*), void *putdat,
+	  unsigned long long num, unsigned base, int width, int padc)
 {
-	// first recursively print all preceding (more significant) digits
-	if (num >= base) {
-		printnum(putch, putdat, num / base, base, width - 1, padc);
-	} else {
-		// print any needed pad characters before first digit
-		while (--width > 0)
-			putch(padc, putdat);
-	}
+	char ac[24];	// safe for 64-bit integers
+	int i;
 
-	// then print this (the least significant) digit
-	putch("0123456789abcdef"[num % base], putdat);
+	// convert digits
+	i = 0;
+	do {
+		ac[i++] = "0123456789abcdef"[num % base];
+	} while ((num /= base) != 0);
+	
+	// print any needed pad characters before the first digit
+	while (width-- > i)
+		putch(padc, putdat);
+
+	// then print all digits
+	while (i-- > 0)
+		putch(ac[i], putdat);
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -76,7 +81,6 @@ getint(va_list *ap, int lflag)
 	else
 		return va_arg(*ap, int);
 }
-
 
 // Main function to format and print a string.
 void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
@@ -225,7 +229,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			num = getuint(&ap, lflag);
 			base = 16;
 		number:
-			printnum(putch, putdat, num, base, width, padc);
+			printuint(putch, putdat, num, base, width, padc);
 			break;
 
 		// escaped '%' character
