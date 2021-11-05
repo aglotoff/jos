@@ -38,13 +38,13 @@ static void
 printuint(void (*putch)(int, void*), void *putdat,
 	  unsigned long long num, unsigned base, int width, int padc)
 {
-	char ac[24];	// safe for 64-bit integers
+	char buf[24];	// safe for 64-bit integers
 	int i;
 
 	// convert digits
 	i = 0;
 	do {
-		ac[i++] = "0123456789abcdef"[num % base];
+		buf[i++] = "0123456789abcdef"[num % base];
 	} while ((num /= base) != 0);
 	
 	// print any needed pad characters before the first digit
@@ -53,7 +53,68 @@ printuint(void (*putch)(int, void*), void *putdat,
 
 	// then print all digits
 	while (i-- > 0)
-		putch(ac[i], putdat);
+		putch(buf[i], putdat);
+}
+
+static void
+printdbl(void (*putch)(int, void*), void *putdat,
+	 long double num, int width, int precision, int padc)
+{
+	char buf[32];
+	unsigned long long ipart, fpart;
+	int i, sign;
+
+	if (precision < 0)
+		precision = 6;
+
+	if (num < 0) {
+		sign = 1;
+		num = -num;
+	} else {
+		sign = 0;
+	}
+
+	ipart = (long long) num;
+
+	num -= ipart;
+	for (i = 0; i < precision; i++)
+		num *= 10.0;
+	fpart = (long long) num;
+	
+	// convert the fractional part
+	i = 0;
+	if (precision > 0) {
+		do {
+			buf[i++] = "0123456789"[fpart % 10];
+		} while ((fpart /= 10) != 0);
+
+		while (i < precision)
+			buf[i++] = '0';
+
+		buf[i++] = '.';
+	}
+
+	// convert the integer part
+	do {
+		buf[i++] = "0123456789"[ipart % 10];
+	} while ((ipart /= 10) != 0);
+
+	if (sign) {
+		if (padc == ' ') {
+			buf[i++] = '-';
+		} else {
+			putch('-', putdat);
+			width--;
+		}
+	}
+
+	// print any needed pad characters before the first digit
+	while (width-- > i)
+		putch(padc, putdat);
+
+	// then print all digits
+	while (i-- > 0)
+		putch(buf[i], putdat);
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -82,6 +143,17 @@ getint(va_list *ap, int lflag)
 		return va_arg(*ap, int);
 }
 
+// Get a floating-point number of various possible sizes from a varargs list,
+// depending on the lflag parameter.
+static long double
+getdbl(va_list *ap, int lflag)
+{
+	if (lflag >= 2)
+		return va_arg(*ap, long double);
+	else
+		return va_arg(*ap, double);
+}
+
 // Main function to format and print a string.
 void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
 
@@ -91,6 +163,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 	register const char *p;
 	register int ch, err;
 	unsigned long long num;
+	long double dbl;
 	int base, lflag, width, precision, altflag;
 	char padc;
 
@@ -230,6 +303,11 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			base = 16;
 		number:
 			printuint(putch, putdat, num, base, width, padc);
+			break;
+
+		case 'f':
+			dbl = getdbl(&ap, lflag);
+			printdbl(putch, putdat, dbl, width, precision, padc);
 			break;
 
 		// escaped '%' character

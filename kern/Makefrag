@@ -69,6 +69,7 @@ KERN_BINFILES +=	user/idle \
 			user/faultnostack \
 			user/faultbadhandler \
 			user/faultevilhandler \
+			user/testmath \
 			user/forktree \
 			user/sendpage \
 			user/spin \
