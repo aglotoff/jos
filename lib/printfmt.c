@@ -3,6 +3,7 @@
 // This code is also used by both the kernel and user programs.
 
 #include <inc/types.h>
+#include <inc/math.h>
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/stdarg.h>
@@ -58,11 +59,11 @@ printuint(void (*putch)(int, void*), void *putdat,
 
 static void
 printdbl(void (*putch)(int, void*), void *putdat,
-	 long double num, int width, int precision, int padc)
+	 double num, int width, int precision, int padc)
 {
-	char buf[32];
+	char buf[128];
 	unsigned long long ipart, fpart;
-	int i, sign;
+	int i, overflow, sign;
 
 	if (precision < 0)
 		precision = 6;
@@ -74,27 +75,40 @@ printdbl(void (*putch)(int, void*), void *putdat,
 		sign = 0;
 	}
 
+	// extract the integer part
 	ipart = (long long) num;
 
+	// extract the fractional part and preserve one extra digit for rounding
 	num -= ipart;
-	for (i = 0; i < precision; i++)
+	for (i = 0; i <= precision; i++)
 		num *= 10.0;
 	fpart = (long long) num;
-	
+
 	// convert the fractional part
-	i = 0;
-	if (precision > 0) {
-		do {
-			buf[i++] = "0123456789"[fpart % 10];
-		} while ((fpart /= 10) != 0);
+	i = overflow = 0;
+	do {
+		buf[i++] = "0123456789"[fpart % 10];
+	} while ((fpart /= 10) != 0);
 
-		while (i < precision)
-			buf[i++] = '0';
+	while (i < precision)
+		buf[i++] = '0';
 
-		buf[i++] = '.';
+	// round the fractional part
+	if (buf[0] >= '5') {
+		buf[0] = '0';
+		overflow = 1;
+		for (i = 1; i <= precision; i++)
+			if (overflow) {
+				overflow = (buf[i] == '9');
+				buf[i] = overflow ? '0' : buf[i] + 1;
+			}
 	}
 
+	if (precision > 0)
+		buf[i++] = '.';
+
 	// convert the integer part
+	ipart += overflow;
 	do {
 		buf[i++] = "0123456789"[ipart % 10];
 	} while ((ipart /= 10) != 0);
@@ -113,7 +127,7 @@ printdbl(void (*putch)(int, void*), void *putdat,
 		putch(padc, putdat);
 
 	// then print all digits
-	while (i-- > 0)
+	while (--i > 0)
 		putch(buf[i], putdat);
 }
 
@@ -141,17 +155,6 @@ getint(va_list *ap, int lflag)
 		return va_arg(*ap, long);
 	else
 		return va_arg(*ap, int);
-}
-
-// Get a floating-point number of various possible sizes from a varargs list,
-// depending on the lflag parameter.
-static long double
-getdbl(va_list *ap, int lflag)
-{
-	if (lflag >= 2)
-		return va_arg(*ap, long double);
-	else
-		return va_arg(*ap, double);
 }
 
 // Main function to format and print a string.
@@ -191,6 +194,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// flag to pad with 0's instead of spaces
 		case '0':
 			padc = '0';
+			precision = 0;
 			goto reswitch;
 
 		// width field
@@ -306,7 +310,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			break;
 
 		case 'f':
-			dbl = getdbl(&ap, lflag);
+			dbl = va_arg(ap, double);
 			printdbl(putch, putdat, dbl, width, precision, padc);
 			break;
 

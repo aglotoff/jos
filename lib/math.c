@@ -184,7 +184,7 @@ dnorm(uint16_t *w)
 //
 // Scale the double value by 2^exp.
 //
-static int
+int
 dscale(double *x, int exp)
 {
 	uint16_t *w;
