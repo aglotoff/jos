@@ -33,4 +33,6 @@ double frexp(double num, int *exp);
 double ldexp(double x, int exp);
 double modf(double x, double *iptr);
 
+double sqrt(double x);
+
 #endif /* not JOS_INC_MATH_H */

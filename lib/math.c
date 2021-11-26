@@ -411,3 +411,55 @@ modf(double x, double *iptr)
 		return x - *iptr;
 	}
 }
+
+// sqrt(0.5)
+#define SQRTHALF	0.70710678118654752440
+
+double
+sqrt(double x)
+{
+	int i, e;
+	double y;
+
+	if (x < 0)
+		return dnan.d_dbl;
+
+	// 1. Reduce x to f and e such that x = f * 2^e.
+	switch (dunscale(&x, &e)) {
+	case FP_NAN:
+		return dnan.d_dbl;
+	case FP_INFINITE:
+		return dinf.d_dbl;
+	case FP_ZERO:
+		return 0.0;
+	}
+
+	// 2. Compute sqrt(f) using the Newton's Method:
+	//   y(i) = (y(i-1) + f/y(i-1)) / 2,  i = 1,2,...,j
+
+	// y(0) (Hart et al, Computer Approximations, 1968).
+	y = 0.41731 + 0.59016 * x;
+
+	// We can save one multiply when computing the value of y(2).
+	y += x / y;
+	y = 0.25 * y + x / y;
+
+	// For 64-bit double valus, 3 iterations are sufficient.
+	y = 0.5 * (y + x / y);
+
+	// 3. Reconstruct the value of sqrt(x):
+	//   sqrt(x) = sqrt(f) * 2^(e/2)      , if e is even
+	// or
+	//   (sqrt(f) / sqrt(2)) * 2^((e+1)/2), if e is odd.
+
+	if (e & 1) {
+		// Multiplication is usually faster than division, so we multiply by
+		// sqrt(0.5) instead of dividing by sqrt(2).
+		y *= SQRTHALF;
+		e++;
+	}
+
+	dscale(&y, e/2);
+
+	return y;
+}

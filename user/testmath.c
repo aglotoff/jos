@@ -3,6 +3,8 @@
 #include <inc/lib.h>
 #include <inc/math.h>
 
+#define SQRTHALF	0.70710678118654752440
+
 static int
 approx(double x, double y)
 {
@@ -62,5 +64,11 @@ umain(int argc, char **argv)
 	assert(modf(0.6, &x) == 0.6 && x == 0.0);
 	assert(modf(12.0, &x) == 0.0 && x == 12.0);
 
-	cprintf("SUCCESS testing <math.h>, part 1\n");
+	assert(approx(sqrt(0.0), 0.0));
+	assert(approx(sqrt(0.5), SQRTHALF));
+	assert(approx(sqrt(1.0), 1.0));
+	assert(approx(sqrt(2.0), 1.0 / SQRTHALF));
+	assert(approx(sqrt(144.0), 12.0));
+
+	cprintf("SUCCESS testing <math.h>\n");
 }
